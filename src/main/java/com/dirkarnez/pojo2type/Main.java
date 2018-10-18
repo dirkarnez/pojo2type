@@ -3,17 +3,15 @@ package com.dirkarnez.pojo2type;
 import javax.tools.*;
 import java.io.*;
 import java.lang.reflect.Field;
-import java.util.Arrays;
+import java.util.ArrayList;
 import java.util.List;
-import java.util.stream.Collectors;
 
 class JavaClassLoaderTest extends ClassLoader {
     public Class<?> load(File f) {
         FileInputStream fileInputStream = null;
         try {
             fileInputStream = new FileInputStream(f);
-            byte rawBytes[] = new byte[fileInputStream.available()];
-            fileInputStream.read(rawBytes);
+            byte rawBytes[] = toByteArray(fileInputStream);
             return this.defineClass(null, rawBytes, 0, rawBytes.length);
         } catch (Exception e) {
             e.printStackTrace();
@@ -26,11 +24,22 @@ class JavaClassLoaderTest extends ClassLoader {
             }
         }
     }
+
+    private byte[] toByteArray(InputStream inputStream) throws IOException {
+        ByteArrayOutputStream out = new ByteArrayOutputStream();
+        int read;
+        byte[] byteArray = new byte[1000];
+        while ( (read = inputStream.read(byteArray, 0, byteArray.length) ) != -1) {
+            out.write( byteArray, 0, read );
+        }
+        out.flush();
+        return out.toByteArray();
+    }
 }
 
 public class Main {
     public static void main(String[] args) {
-        List<File> listOfSrc = getFilesInDirectory("C:\\Users\\User\\Desktop\\model", "java");
+        List<File> listOfSrc = getFilesInDirectory("C:\\Users\\User\\Desktop\\model", ".java");
         JavaCompiler compiler = ToolProvider.getSystemJavaCompiler();
         DiagnosticCollector<JavaFileObject> diagnostics = new DiagnosticCollector<>();
         StandardJavaFileManager manager = compiler.getStandardFileManager(diagnostics, null, null);
@@ -45,13 +54,14 @@ public class Main {
             e.printStackTrace();
         }
 
-        List<File> listOfClass = getFilesInDirectory("C:\\Users\\User\\Desktop\\model", "class");
+        List<File> listOfClass = getFilesInDirectory("C:\\Users\\User\\Desktop\\model", ".class");
 
-        listOfClass.stream().forEach(classFile -> {
+        JavaClassLoaderTest j = new JavaClassLoaderTest();
+        for (File clazz : listOfClass) {
             try {
-                writeTypeScriptInterface(new JavaClassLoaderTest().load(classFile));
+                writeTypeScriptInterface(j.load(clazz));
                 System.out.println();
-                classFile.delete();
+                clazz.delete();
 //                if (classFile.delete()) {
 //                    System.out.println("File deleted successfully");
 //                } else {
@@ -60,20 +70,19 @@ public class Main {
             } catch (Exception e) {
                 e.printStackTrace();
             }
-        });
-
+        }
     }
 
     private static List<File> getFilesInDirectory(String pathName, String extension) {
         File srcFolder = new File(pathName);
-        List<File> listOfFile = Arrays.asList(srcFolder.listFiles());
-                listOfFile.stream()
-                .filter(file -> {
-                    String fileName = file.getName();
-                    return file.isFile() && extension.equals(fileName.substring(fileName.lastIndexOf(".")));
-                })
-                .collect(Collectors.toList());
-
+        List<File> listOfFile = new ArrayList<>();
+        for (File file : srcFolder.listFiles()) {
+            String fileName = file.getName();
+            String fileExt = fileName.substring(fileName.lastIndexOf("."));
+            if (file.isFile() && extension.equals(fileExt)) {
+                listOfFile.add(file);
+            }
+        }
         return listOfFile;
     }
 
