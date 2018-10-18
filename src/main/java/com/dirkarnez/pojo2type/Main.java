@@ -4,6 +4,8 @@ import javax.tools.*;
 import java.io.*;
 import java.lang.reflect.Field;
 import java.util.Arrays;
+import java.util.List;
+import java.util.stream.Collectors;
 
 class JavaClassLoaderTest extends ClassLoader {
     public Class<?> load(File f) {
@@ -28,51 +30,54 @@ class JavaClassLoaderTest extends ClassLoader {
 
 public class Main {
     public static void main(String[] args) {
-        File f = new File("C:\\Users\\User\\Desktop\\MyPojo.java");
+        List<File> listOfSrc = getFilesInDirectory("C:\\Users\\User\\Desktop\\model", "java");
+        JavaCompiler compiler = ToolProvider.getSystemJavaCompiler();
+        DiagnosticCollector<JavaFileObject> diagnostics = new DiagnosticCollector<>();
+        StandardJavaFileManager manager = compiler.getStandardFileManager(diagnostics, null, null);
 
-        final JavaCompiler compiler = ToolProvider.getSystemJavaCompiler();
-        final DiagnosticCollector<JavaFileObject> diagnostics = new DiagnosticCollector<>();
-        final StandardJavaFileManager manager = compiler.getStandardFileManager(
-                diagnostics, null, null);
-
-
-        final File file = new File(f.toURI());
-
-
-        final Iterable<? extends JavaFileObject> sources = manager.getJavaFileObjectsFromFiles(Arrays.asList(file));
-        final JavaCompiler.CompilationTask task = compiler.getTask(null, manager, diagnostics,
-                null, null, sources);
+        JavaCompiler.CompilationTask task = compiler.getTask(null, manager, diagnostics,
+                null, null, manager.getJavaFileObjectsFromFiles(listOfSrc));
         System.out.format("%b\n", task.call());
 
-        for (final Diagnostic<? extends JavaFileObject> diagnostic : diagnostics.getDiagnostics()) {
-
-            System.out.format("%s, line %d in %s",
-                    diagnostic.getMessage(null),
-                    diagnostic.getLineNumber(),
-                    diagnostic.getSource().getName());
-        }
         try {
             manager.close();
         } catch (IOException e) {
             e.printStackTrace();
         }
 
-        File classFile = new File("C:\\Users\\User\\Desktop\\MyPojo.class");
+        List<File> listOfClass = getFilesInDirectory("C:\\Users\\User\\Desktop\\model", "class");
 
-        try {
-            writeTypeScriptInterface(new JavaClassLoaderTest().load(classFile));
-            if (classFile.delete()) {
-                System.out.println("File deleted successfully");
-            } else {
-                System.out.println("Failed to delete the file");
+        listOfClass.stream().forEach(classFile -> {
+            try {
+                writeTypeScriptInterface(new JavaClassLoaderTest().load(classFile));
+                System.out.println();
+                classFile.delete();
+//                if (classFile.delete()) {
+//                    System.out.println("File deleted successfully");
+//                } else {
+//                    System.out.println("Failed to delete the file");
+//                }
+            } catch (Exception e) {
+                e.printStackTrace();
             }
-        } catch (Exception e) {
-            e.printStackTrace();
-        }
+        });
+
+    }
+
+    private static List<File> getFilesInDirectory(String pathName, String extension) {
+        File srcFolder = new File(pathName);
+        List<File> listOfFile = Arrays.asList(srcFolder.listFiles());
+                listOfFile.stream()
+                .filter(file -> {
+                    String fileName = file.getName();
+                    return file.isFile() && extension.equals(fileName.substring(fileName.lastIndexOf(".")));
+                })
+                .collect(Collectors.toList());
+
+        return listOfFile;
     }
 
     private static void writeTypeScriptInterface(Class<?> cls) {
-
         Field[] fields = cls.getDeclaredFields();
         System.out.println("interface " + cls.getSimpleName() + " {");
         for (int i = 0; i < fields.length; i++) {
@@ -83,7 +88,6 @@ public class Main {
             System.out.print("\t" + field.getName() + ": " + mapTypescriptTypeName(field.getType()));
         }
         System.out.println("\n}");
-
     }
 
     private static String mapTypescriptTypeName(Class<?> type2Map) {
